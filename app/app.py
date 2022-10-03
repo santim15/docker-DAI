@@ -1,5 +1,7 @@
 #./app/app.py
-from flask import Flask, render_template
+from flask import Flask, Response, render_template
+from bson.json_util import dumps
+from pymongo import MongoClient
 import os
 
 PEOPLE_FOLDER = os.path.join('static', 'pato')
@@ -7,11 +9,17 @@ PEOPLE_FOLDER = os.path.join('static', 'pato')
 app = Flask(__name__,static_folder='/app/static',template_folder='/app/templates')
 app.config['UPLOAD_FOLDER'] = PEOPLE_FOLDER  
 
+# Conectar al servicio (docker) "mongo" en su puerto estandar
+client = MongoClient("mongo", 27017)
+
+# Base de datos
+db = client.cockteles
+
 #######################################################################
     
 @app.route('/')
-def hello_world():
-  return 'Hello, World!'
+def index():
+ 	return '/imagen -> Imprime una imagen en pantalla    || /fibonacci/*numero* -> Función fibonacci    || /todas_las_recetas -> todas las recetas de "Cockteles"'
 
 #######################################################################
 
@@ -64,3 +72,72 @@ def fibonacci(lectura):
 @app.errorhandler(404)
 def error404(e):
     return render_template('404.html'),404
+
+#######################################################################
+
+@app.route('/todas_las_recetas')
+def mongo():
+    # Encontramos los documentos de la coleccion "recipes"
+    recetas = db.recipes.find() # devuelve un cursor(*), no una lista ni un iterador
+
+    lista_recetas = []
+    for  receta in recetas:
+        app.logger.debug(receta)  # salida consola
+        lista_recetas.append(receta)
+
+    response = {
+        'len': len(lista_recetas),
+        'data': lista_recetas
+    }
+
+    # Convertimos los resultados a formato JSON
+    resJson = dumps(response)
+
+    # Devolver en JSON al cliente cambiando la cabecera http para especificar que es un json
+    return Response(resJson, mimetype='application/json')
+
+#######################################################################
+
+@app.route('/recetas_con/<string:ingrediente>')
+def busca_ingrediente(ingrediente):
+	# Encontramos los documentos de la coleccion "recipes"
+	recetas = db.recipes.find({"ingredients.name": ingrediente}) # devuelve un cursor(*), no una lista ni un iterador
+
+	lista_recetas = []
+	for  receta in recetas:
+		app.logger.debug(receta)  # salida consola
+		lista_recetas.append(receta)
+
+	response = {
+		'len': len(lista_recetas),
+		'data': lista_recetas
+	}
+
+	# Convertimos los resultados a formato JSON
+	resJson = dumps(response)
+
+	# Devolver en JSON al cliente cambiando la cabecera http para especificar que es un json
+	return Response(resJson, mimetype='application/json')
+
+#######################################################################
+
+@app.route('/recetas_compuestas_de/<int:numero>/ingredientes')
+def busca_num_ingrediente(numero):
+	# Encontramos los documentos de la coleccion "recipes"
+	recetas = db.recipes.find( { "ingredients": { "$size": 2 } } ) # devuelve un cursor(*), no una lista ni un iterador
+
+	lista_recetas = []
+	for  receta in recetas:
+		app.logger.debug(receta)  # salida consola
+		lista_recetas.append(receta)
+
+	response = {
+		'len': len(lista_recetas),
+		'data': lista_recetas
+	}
+
+	# Convertimos los resultados a formato JSON
+	resJson = dumps(response)
+
+	# Devolver en JSON al cliente cambiando la cabecera http para especificar que es un json
+	return Response(resJson, mimetype='application/json')
